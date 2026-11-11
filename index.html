@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="hu" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premier League Statisztikai & Meccs Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pl: {
+                            purple: '#38003c',
+                            dark: '#120014',
+                            card: '#1d0c24',
+                            cardHover: '#291233',
+                            neon: '#00ff87',
+                            pink: '#e90052',
+                            cyan: '#04f5ff',
+                            lightBg: '#f4f4f7'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #120014;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #38003c;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e90052;
+        }
+
+        .pulse-live {
+            animation: pulse-animation 1.5s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .gradient-border {
+            border-image: linear-gradient(to right, #00ff87, #60efff) 1;
+        }
+    </style>
+</head>
+<body class="bg-pl-dark text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-pl-pink selection:text-white">
+
+    <!-- TOP HEADER / NAVBAR -->
+    <header class="bg-pl-purple border-b border-purple-900/40 sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('matches')">
+                    <div class="w-10 h-10 rounded-full bg-pl-neon flex items-center justify-center text-pl-purple font-extrabold text-xl shadow-md">
+                        <i class="fa-solid font-black">PL</i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold tracking-tight text-white flex items-center">
+                            Premier League <span class="text-pl-neon text-xs ml-2 px-2 py-0.5 rounded bg-purple-950/80 border border-pl-neon/30">2025/26</span>
+                        </h1>
+                        <p class="text-xs text-purple-200/70">Élő meccskövető és statisztikák</p>
+                    </div>
+                </div>
+
+                <!-- Global Search & Actions -->
+                <div class="flex items-center space-x-3">
+                    <div class="relative hidden sm:block w-48 md:w-64">
+                        <input type="text" id="global-search" onkeyup="filterContent()" placeholder="Csapat vagy meccs keresése..." 
+                            class="w-full bg-purple-950/60 text-xs rounded-full pl-9 pr-4 py-2 border border-purple-800/60 focus:outline-none focus:border-pl-neon text-slate-200 placeholder-purple-300/50 transition">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-purple-300/60"></i>
+                    </div>
+
+                    <!-- API Modal Button -->
+                    <button onclick="openApiModal()" class="px-3 py-1.5 text-xs bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 rounded-lg border border-purple-700/50 transition flex items-center space-x-1.5" title="API Beállítások">
+                        <i class="fa-solid fa-code text-pl-neon"></i>
+                        <span class="hidden md:inline font-medium">API Integráció</span>
+                    </button>
+
+                    <!-- Live Sim Toggle Button -->
+                    <button id="sim-toggle-btn" onclick="toggleSimulation()" class="px-3 py-1.5 text-xs bg-pl-pink/20 hover:bg-pl-pink/30 text-pl-pink font-semibold rounded-lg border border-pl-pink/40 transition flex items-center space-x-1.5">
+                        <span class="w-2 h-2 rounded-full bg-pl-pink pulse-live"></span>
+                        <span id="sim-btn-text">Élő Sim: KI</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN TABS NAVIGATION -->
+        <div class="bg-purple-950/40 border-t border-purple-900/30 px-4">
+            <div class="max-w-7xl mx-auto flex space-x-1 overflow-x-auto no-scrollbar">
+                <button onclick="switchTab('matches')" id="tab-matches" class="tab-btn active border-b-2 border-pl-neon text-pl-neon font-semibold px-4 py-3 text-sm flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-regular fa-calendar-check"></i>
+                    <span>Meccsek & Eredmények</span>
+                </button>
+                <button onclick="switchTab('standings')" id="tab-standings" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium px-4 py-3 text-sm flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-list-ol"></i>
+                    <span>Tabella</span>
+                </button>
+                <button onclick="switchTab('stats')" id="tab-stats" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium px-4 py-3 text-sm flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Statisztikák & Góllövők</span>
+                </button>
+                <button onclick="switchTab('favorites')" id="tab-favorites" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium px-4 py-3 text-sm flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-star text-amber-400"></i>
+                    <span>Kedvencek</span>
+                </button>
+                <button onclick="switchTab('live')" id="tab-live" class="tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium px-4 py-3 text-sm flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-tower-broadcast text-pl-pink"></i>
+                    <span>Élő Központ</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+        <!-- ================= TAB 1: MATCHES ================= -->
+        <section id="sec-matches" class="space-y-6">
+            
+            <!-- Controls Bar -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-pl-card p-4 rounded-xl border border-purple-900/30 shadow-md">
+                
+                <!-- Status Filters -->
+                <div class="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
+                    <button onclick="filterMatches('all')" id="btn-filter-all" class="match-filter-btn px-3 py-1.5 text-xs rounded-full bg-pl-neon text-pl-purple font-bold">Összes</button>
+                    <button onclick="filterMatches('LIVE')" id="btn-filter-live" class="match-filter-btn px-3 py-1.5 text-xs rounded-full bg-purple-900/60 text-slate-300 font-medium hover:bg-purple-800/60 transition flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-pl-pink"></span> Élő (2)
+                    </button>
+                    <button onclick="filterMatches('FINISHED')" id="btn-filter-finished" class="match-filter-btn px-3 py-1.5 text-xs rounded-full bg-purple-900/60 text-slate-300 font-medium hover:bg-purple-800/60 transition">Befejezett</button>
+                    <button onclick="filterMatches('UPCOMING')" id="btn-filter-upcoming" class="match-filter-btn px-3 py-1.5 text-xs rounded-full bg-purple-900/60 text-slate-300 font-medium hover:bg-purple-800/60 transition">Közelgő</button>
+                </div>
+
+                <!-- Matchday Selector -->
+                <div class="flex items-center space-x-3 text-sm">
+                    <button onclick="changeMatchday(-1)" class="p-2 rounded-lg bg-purple-950 hover:bg-purple-900 text-purple-200 transition">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="current-matchday-label" class="font-bold text-slate-200 text-xs sm:text-sm">28. Forduló</span>
+                    <button onclick="changeMatchday(1)" class="p-2 rounded-lg bg-purple-950 hover:bg-purple-900 text-purple-200 transition">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Matches Grid -->
+            <div id="matches-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Match cards populated by JS -->
+            </div>
+        </section>
+
+        <!-- ================= TAB 2: STANDINGS ================= -->
+        <section id="sec-standings" class="hidden space-y-6">
+            <div class="bg-pl-card rounded-xl border border-purple-900/30 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-purple-900/40 flex items-center justify-between bg-purple-950/40">
+                    <div>
+                        <h2 class="font-bold text-white text-base">Bajnoki Tabella</h2>
+                        <p class="text-xs text-slate-400">Premier League 2025/2026-os szezon</p>
+                    </div>
+                    <!-- Legend -->
+                    <div class="hidden sm:flex items-center space-x-4 text-xs text-slate-400">
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Bajnokok Ligája</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Európa Liga</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> Kieső zóna</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs sm:text-sm">
+                        <thead class="bg-purple-950/80 text-purple-300 font-semibold uppercase text-[11px] tracking-wider border-b border-purple-900/50">
+                            <tr>
+                                <th class="py-3 px-3 text-center w-10">#</th>
+                                <th class="py-3 px-4">Csapat</th>
+                                <th class="py-3 px-2 text-center">M</th>
+                                <th class="py-3 px-2 text-center">Gy</th>
+                                <th class="py-3 px-2 text-center">D</th>
+                                <th class="py-3 px-2 text-center">V</th>
+                                <th class="py-3 px-2 text-center hidden sm:table-cell">G+</th>
+                                <th class="py-3 px-2 text-center hidden sm:table-cell">G-</th>
+                                <th class="py-3 px-2 text-center">GK</th>
+                                <th class="py-3 px-3 text-center font-bold text-pl-neon">P</th>
+                                <th class="py-3 px-3 text-center hidden md:table-cell">Forma</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standings-body" class="divide-y divide-purple-900/20">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= TAB 3: STATS & ANALYTICS ================= -->
+        <section id="sec-stats" class="hidden space-y-6">
+            <!-- ... existing stats code ... -->
+        </section>
+
+        <!-- ================= TAB: FAVORITES ================= -->
+        <section id="sec-favorites" class="hidden space-y-6">
+            <div id="favorites-container" class="space-y-6">
+                <!-- Populated by JS -->
+            </div>
+        </section>
+
+        <!-- ================= TAB 4: LIVE SIMULATION CENTER ================= -->
+        <section id="sec-live" class="hidden space-y-6">
+            <div class="bg-gradient-to-r from-purple-950 via-pl-card to-purple-950 rounded-xl border border-pl-pink/40 p-6 shadow-2xl relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl font-extrabold text-white pointer-events-none">LIVE</div>
+                
+                <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+                    <div>
+                        <span class="inline-flex items-center gap-1.5 bg-pl-pink/20 text-pl-pink border border-pl-pink/50 text-xs font-bold px-3 py-1 rounded-full mb-2">
+                            <span class="w-2 h-2 rounded-full bg-pl-pink pulse-live"></span> SZIMULÁLT ÉLŐ MECCS
+                        </span>
+                        <h2 class="text-xl sm:text-2xl font-black text-white">Arsenal vs Chelsea</h2>
+                        <p class="text-xs text-slate-400">Emirates Stadium • Játékvezető: Michael Oliver</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="triggerSimGoal()" class="px-3 py-2 bg-pl-pink hover:bg-pink-600 text-white font-bold text-xs rounded-lg shadow-lg transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-futbol"></i> Gól Szimulálása!
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Match Score Box -->
+                <div class="bg-purple-950/80 rounded-xl p-6 border border-purple-800/40 flex items-center justify-around my-4">
+                    <div class="text-center">
+                        <div class="text-3xl sm:text-5xl font-black text-white" id="sim-home-name">ARS</div>
+                        <div class="text-xs text-purple-300 mt-1">Arsenal</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-4xl sm:text-6xl font-black text-pl-neon tracking-tight" id="sim-score">2 - 1</div>
+                        <div class="text-xs font-bold text-pl-pink bg-purple-900/60 px-3 py-1 rounded-full inline-block mt-2" id="sim-minute">68' PERC</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl sm:text-5xl font-black text-white" id="sim-away-name">CHE</div>
+                        <div class="text-xs text-purple-300 mt-1">Chelsea</div>
+                    </div>
+                </div>
+
+                <!-- Ticker Feed -->
+                <div class="mt-6 bg-pl-dark/80 rounded-lg p-4 border border-purple-900/50">
+                    <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-bolt text-yellow-400"></i> Élő Eseményfolyam (Ticker)
+                    </h4>
+                    <div id="sim-ticker" class="space-y-2 text-xs max-h-48 overflow-y-auto pr-2">
+                        <!-- Simulated events injected here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================= MATCH DETAIL MODAL ================= -->
+    <div id="match-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-pl-card border border-purple-800/60 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+            <!-- Modal Header -->
+            <div class="p-4 sm:p-6 bg-purple-950/60 border-b border-purple-900/40 flex justify-between items-start sticky top-0 z-10 backdrop-blur-md">
+                <div>
+                    <span id="modal-match-status" class="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-900 text-purple-200">Befejezett</span>
+                    <h3 id="modal-stadium" class="text-xs text-slate-400 mt-2">Emirates Stadium</h3>
+                </div>
+                <button onclick="closeMatchModal()" class="text-slate-400 hover:text-white p-2 rounded-lg bg-purple-950/80">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6 space-y-6">
+                <!-- Teams & Score Header -->
+                <div class="flex items-center justify-between text-center border-b border-purple-900/30 pb-6">
+                    <div class="flex-1 flex flex-col items-center">
+                        <img id="modal-home-flag" class="w-14 h-14 object-contain mb-2" src="" alt="Home">
+                        <span id="modal-home-name" class="font-bold text-sm sm:text-base text-white"></span>
+                    </div>
+                    <div class="px-4">
+                        <span id="modal-score" class="text-3xl sm:text-4xl font-black text-pl-neon tracking-wider"></span>
+                        <div id="modal-time-detail" class="text-xs text-slate-400 mt-1">Végeredmény</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <img id="modal-away-flag" class="w-14 h-14 object-contain mb-2" src="" alt="Away">
+                        <span id="modal-away-name" class="font-bold text-sm sm:text-base text-white"></span>
+                    </div>
+                </div>
+
+                <!-- Modal Sub-Tabs Navigation -->
+                <div class="flex border-b border-purple-900/40 space-x-4">
+                    <button id="modal-tab-btn-overview" onclick="switchModalTab('overview')" class="pb-2 text-xs font-bold text-pl-neon border-b-2 border-pl-neon">Áttekintés & Statisztika</button>
+                    <button id="modal-tab-btn-player-stats" onclick="switchModalTab('player-stats')" class="pb-2 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-white">Játékos Statisztikák</button>
+                </div>
+
+                <!-- Modal Tab 1: Overview -->
+                <div id="modal-sec-overview" class="space-y-6">
+                    <!-- Key Match Events (Goals/Cards) -->
+                    <div>
+                        <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider mb-3">Kulcsesemények</h4>
+                        <div id="modal-events" class="space-y-2 bg-purple-950/30 p-3 rounded-lg border border-purple-900/20 text-xs">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Deep Statistics Comparison Bars -->
+                    <div>
+                        <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider mb-3">Meccs Statisztikák</h4>
+                        <div class="space-y-4 text-xs" id="modal-stats-bars">
+                            <!-- Bar item mockup -->
+                        </div>
+                    </div>
+
+                    <!-- Lineups -->
+                    <div>
+                        <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider mb-3">Kezdőcsapatok (Várható / Hivatalos)</h4>
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div class="bg-purple-950/40 p-3 rounded-lg border border-purple-900/30">
+                                <h5 id="modal-home-lineup-title" class="font-bold text-pl-neon mb-2">Hazai</h5>
+                                <ul id="modal-home-lineup" class="space-y-1 text-slate-300"></ul>
+                            </div>
+                            <div class="bg-purple-950/40 p-3 rounded-lg border border-purple-900/30">
+                                <h5 id="modal-away-lineup-title" class="font-bold text-pl-cyan mb-2">Vendég</h5>
+                                <ul id="modal-away-lineup" class="space-y-1 text-slate-300"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Tab 2: Player Performance Stats -->
+                <div id="modal-sec-player-stats" class="hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider">Játékosok Teljesítménye</h4>
+                        <div class="flex bg-purple-950 p-1 rounded-lg border border-purple-900/40 text-xs">
+                            <button id="modal-player-toggle-home" onclick="filterModalPlayerStats('home')" class="px-3 py-1 rounded bg-pl-neon text-pl-purple font-bold">Hazai</button>
+                            <button id="modal-player-toggle-away" onclick="filterModalPlayerStats('away')" class="px-3 py-1 rounded text-slate-300 hover:text-white font-medium">Vendég</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-purple-950/80 text-purple-300 font-semibold uppercase text-[10px] tracking-wider border-b border-purple-900/50">
+                                <tr>
+                                    <th class="py-2.5 px-3">Játékos</th>
+                                    <th class="py-2.5 px-2 text-center">Értékelés</th>
+                                    <th class="py-2.5 px-2 text-center">Gól / Aszt</th>
+                                    <th class="py-2.5 px-2 text-center">Lövés (Kapura)</th>
+                                    <th class="py-2.5 px-2 text-center">Passz %</th>
+                                    <th class="py-2.5 px-2 text-center">Szerelés</th>
+                                    <th class="py-2.5 px-2 text-center">Lapok</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modal-player-stats-body" class="divide-y divide-purple-900/20">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= API INTEGRATION MODAL ================= -->
+    <div id="api-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-pl-card border border-purple-800/60 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="closeApiModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="p-2.5 bg-pl-neon/10 text-pl-neon rounded-lg">
+                    <i class="fa-solid fa-network-wired text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-white text-lg">Valós API Integrációs Útmutató</h3>
+                    <p class="text-xs text-slate-400">Hogyan kötheted be az élő adatsorokat?</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-xs text-slate-300">
+                <p>Ez a dashboard jelenleg egy **dinamikus szimulációs motorral** fut. Valós adatokhoz az alábbi ingyenes futball API-kat használhatod:</p>
+                
+                <div class="bg-purple-950/60 p-3 rounded-lg border border-purple-800/40 space-y-2">
+                    <div class="font-bold text-pl-neon">1. Football-Data.org (Ajánlott)</div>
+                    <p class="text-[11px] text-slate-400">Ingyenes kulcsot ad Premier League meccsekhez, eredményekhez és tabellához.</p>
+                </div>
+
+                <div class="bg-purple-950/60 p-3 rounded-lg border border-purple-800/40 space-y-2">
+                    <div class="font-bold text-pl-cyan">2. API-Football (RapidAPI)</div>
+                    <p class="text-[11px] text-slate-400">Részletes játékos statisztikák, xG adatok és felállások.</p>
+                </div>
+
+                <div class="border-t border-purple-900/40 pt-3">
+                    <label class="block text-xs font-semibold text-slate-200 mb-1">Teszt API Kulcs megadása (Football-Data.org):</label>
+                    <div class="flex gap-2">
+                        <input type="password" id="api-key-input" placeholder="pl. 4a8f9c123456..." class="flex-1 bg-purple-950 rounded px-3 py-1.5 border border-purple-800 text-xs focus:outline-none focus:border-pl-neon">
+                        <button onclick="saveApiKey()" class="px-3 py-1.5 bg-pl-neon text-pl-purple font-bold rounded text-xs">Mentés</button>
+                    </div>
+                    <p id="api-status-msg" class="text-[11px] text-emerald-400 mt-1 hidden"><i class="fa-solid fa-check"></i> API Kulcs elmentve a Helyi Tárolóba (LocalStorage)!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-purple-950/60 border-t border-purple-900/40 py-6 text-center text-xs text-slate-400 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-pl-neon"></span>
+                <span>Premier League Élő Statisztikai Rendszer</span>
+            </div>
+            <div>
+                Készült modern HTML5, Tailwind CSS és Vanilla JS alapon.
+            </div>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        /* ================= MOCK DATA & APP STATE ================= */
+        // Favorited team codes stored in localStorage
+        let favoriteTeams = JSON.parse(localStorage.getItem('pl_favorites')) || ['ARS', 'LIV'];
+
+        const playerMatchStatsMock = {
+            1: { // Match ID 1: ARS vs CHE
+                home: [
+                    { name: "B. Saka", pos: "RW", rating: 8.8, goals: 1, assists: 0, shots: "4 (2)", passAcc: 86, tackles: 2, cards: "—" },
+                    { name: "K. Havertz", pos: "ST", rating: 8.2, goals: 1, assists: 0, shots: "3 (2)", passAcc: 78, tackles: 1, cards: "—" },
+                    { name: "M. Odegaard", pos: "CAM", rating: 7.9, goals: 0, assists: 1, shots: "2 (1)", passAcc: 91, tackles: 3, cards: "—" },
+                    { name: "D. Rice", pos: "CM", rating: 7.6, goals: 0, assists: 1, shots: "1 (0)", passAcc: 94, tackles: 4, cards: "—" },
+                    { name: "W. Saliba", pos: "CB", rating: 7.4, goals: 0, assists: 0, shots: "0 (0)", passAcc: 96, tackles: 2, cards: "—" },
+                    { name: "D. Raya", pos: "GK", rating: 7.1, goals: 0, assists: 0, shots: "0 (0)", passAcc: 82, tackles: 0, cards: "—" }
+                ],
+                away: [
+                    { name: "C. Palmer", pos: "CAM", rating: 8.1, goals: 1, assists: 0, shots: "3 (2)", passAcc: 88, tackles: 1, cards: "—" },
+                    { name: "M. Caicedo", pos: "CDM", rating: 6.8, goals: 0, assists: 0, shots: "1 (0)", passAcc: 85, tackles: 5, cards: "🟨 38'" },
+                    { name: "N. Jackson", pos: "ST", rating: 6.5, goals: 0, assists: 1, shots: "2 (1)", passAcc: 70, tackles: 0, cards: "—" },
+                    { name: "L. Colwill", pos: "CB", rating: 6.7, goals: 0, assists: 0, shots: "0 (0)", passAcc: 90, tackles: 3, cards: "—" },
+                    { name: "R. Sanchez", pos: "GK", rating: 6.3, goals: 0, assists: 0, shots: "0 (0)", passAcc: 75, tackles: 0, cards: "—" }
+                ]
+            },
+            2: { // Match ID 2: MCI vs LIV
+                home: [
+                    { name: "E. Haaland", pos: "ST", rating: 8.4, goals: 1, assists: 0, shots: "5 (3)", passAcc: 72, tackles: 0, cards: "—" },
+                    { name: "K. De Bruyne", pos: "CAM", rating: 7.8, goals: 0, assists: 1, shots: "3 (1)", passAcc: 89, tackles: 1, cards: "—" },
+                    { name: "Rodri", pos: "CDM", rating: 7.7, goals: 0, assists: 0, shots: "2 (1)", passAcc: 95, tackles: 4, cards: "—" }
+                ],
+                away: [
+                    { name: "M. Salah", pos: "RW", rating: 8.3, goals: 1, assists: 0, shots: "4 (2)", passAcc: 84, tackles: 1, cards: "—" },
+                    { name: "V. van Dijk", pos: "CB", rating: 7.5, goals: 0, assists: 0, shots: "1 (0)", passAcc: 92, tackles: 3, cards: "—" },
+                    { name: "A. Mac Allister", pos: "CM", rating: 7.2, goals: 0, assists: 1, shots: "1 (1)", passAcc: 88, tackles: 3, cards: "—" }
+                ]
+            }
+        };
+
+        const teamsData = {
+            "ARS": { name: "Arsenal", logo: "https://upload.wikimedia.org/wikipedia/en/5/53/Arsenal_FC.svg" },
+            "MCI": { name: "Manchester City", logo: "https://upload.wikimedia.org/wikipedia/en/eb/eb/Manchester_City_FC_badge.svg" },
+            "LIV": { name: "Liverpool", logo: "https://upload.wikimedia.org/wikipedia/en/0/0c/Liverpool_FC.svg" },
+            "CHE": { name: "Chelsea", logo: "https://upload.wikimedia.org/wikipedia/en/c/cc/Chelsea_FC.svg" },
+            "TOT": { name: "Tottenham Hotspur", logo: "https://upload.wikimedia.org/wikipedia/en/b/b4/Tottenham_Hotspur.svg" },
+            "MUN": { name: "Manchester United", logo: "https://upload.wikimedia.org/wikipedia/en/7/7a/Manchester_United_FC_crest.svg" },
+            "NEW": { name: "Newcastle United", logo: "https://upload.wikimedia.org/wikipedia/en/5/56/Newcastle_United_Logo.svg" },
+            "AVL": { name: "Aston Villa", logo: "https://upload.wikimedia.org/wikipedia/en/9/9f/Aston_Villa_logo.svg" },
+            "BHA": { name: "Brighton & Hove Albion", logo: "https://upload.wikimedia.org/wikipedia/en/f/fd/Brighton_%26_Hove_Albion_logo.svg" },
+            "WHU": { name: "West Ham United", logo: "https://upload.wikimedia.org/wikipedia/en/c/c2/West_Ham_United_FC_logo.svg" }
+        };
+
+        // ... existing matches, standings, topScorers, topAssists ...
+                    { min: 73, type: "goal", team: "away", player: "M. Salah" }
+                ],
+                lineups: {
+                    home: ["Ederson (GK)", "Walker", "Dias", "Akanji", "Gvardiol", "Rodri", "De Bruyne", "Bernardo", "Foden", "Haaland", "Doku"],
+                    away: ["Alisson (GK)", "Alexander-Arnold", "Konate", "Van Dijk", "Robertson", "Gravenberch", "Mac Allister", "Szoboszlai", "Salah", "Nunez", "Diaz"]
+                }
+            },
+            {
+                id: 3,
+                matchday: 28,
+                home: "TOT",
+                away: "MUN",
+                homeGoals: 3,
+                awayGoals: 1,
+                status: "FINISHED",
+                minute: 90,
+                stadium: "Tottenham Hotspur Stadium, London",
+                stats: { homePos: 51, awayPos: 49, homeShots: 12, awayShots: 11, homeXg: 2.4, awayXg: 1.2, homeFouls: 10, awayFouls: 12 },
+                events: [
+                    { min: 11, type: "goal", team: "home", player: "H. Son" },
+                    { min: 49, type: "goal", team: "away", player: "B. Fernandes" },
+                    { min: 70, type: "goal", team: "home", player: "D. Solanke" },
+                    { min: 88, type: "goal", team: "home", player: "B. Johnson" }
+                ],
+                lineups: {
+                    home: ["Vicario (GK)", "Porro", "Romero", "Van de Ven", "Udogie", "Sarr", "Bissouma", "Maddison", "Johnson", "Solanke", "Son"],
+                    away: ["Onana (GK)", "Dalot", "Yoro", "Martinez", "Mazraoui", "Mainoo", "Casemiro", "Garnacho", "Fernandes", "Rashford", "Hojlund"]
+        let currentModalMatchId = null;
+        let currentModalPlayerTeam = 'home';
+
+        /* ================= FAVORITES MANAGEMENT ================= */
+        function toggleFavorite(teamCode, event) {
+            if (event) event.stopPropagation();
+            if (favoriteTeams.includes(teamCode)) {
+                favoriteTeams = favoriteTeams.filter(code => code !== teamCode);
+            } else {
+                favoriteTeams.push(teamCode);
+            }
+            localStorage.setItem('pl_favorites', JSON.stringify(favoriteTeams));
+            renderMatches();
+            renderStandings();
+            renderFavoritesTab();
+        }
+
+        function isFavorite(teamCode) {
+            return favoriteTeams.includes(teamCode);
+        }
+
+        /* ================= NAVIGATION TABS ================= */
+        function switchTab(tabId) {
+            ['matches', 'standings', 'stats', 'favorites', 'live'].forEach(id => {
+                document.getElementById(`sec-${id}`).classList.add('hidden');
+                const btn = document.getElementById(`tab-${id}`);
+                btn.classList.remove('border-pl-neon', 'text-pl-neon');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(`sec-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-slate-400');
+            activeBtn.classList.add('border-pl-neon', 'text-pl-neon');
+
+            if (tabId === 'favorites') {
+                renderFavoritesTab();
+            }
+        }
+
+        /* ================= FAVORITES TAB RENDERER ================= */
+        function renderFavoritesTab() {
+            const container = document.getElementById('favorites-container');
+            container.innerHTML = '';
+
+            if (favoriteTeams.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-pl-card p-8 rounded-xl border border-purple-900/40 text-center space-y-4 max-w-lg mx-auto">
+                        <div class="w-16 h-16 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center text-3xl mx-auto border border-amber-500/30">
+                            <i class="fa-solid fa-star"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Nincs kiválasztva kedvenc csapat</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Jelöld meg a neked tetsző csapatokat a csillag (<i class="fa-solid fa-star text-amber-400"></i>) ikonra kattintva a Tabellán vagy a Meccskártyákon, hogy itt külön nyomon követhesd a teljesítményüket!
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            favoriteTeams.forEach(teamCode => {
+                const team = teamsData[teamCode];
+                const teamStanding = standings.find(s => s.team === teamCode);
+                const teamMatches = matches.filter(m => m.home === teamCode || m.away === teamCode);
+
+                const teamSection = `
+                    <div class="bg-pl-card rounded-xl border border-purple-900/30 p-5 shadow-lg space-y-4">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between border-b border-purple-900/30 pb-3">
+                            <div class="flex items-center space-x-3">
+                                <img src="${team.logo}" class="w-10 h-10 object-contain" alt="${team.name}">
+                                <div>
+                                    <h3 class="font-bold text-white text-base flex items-center gap-2">
+                                        ${team.name}
+                                        <button onclick="toggleFavorite('${teamCode}', event)" class="text-amber-400 hover:text-amber-300">
+                                            <i class="fa-solid fa-star"></i>
+                                        </button>
+                                    </h3>
+                                    <p class="text-xs text-slate-400">Tabella helyezés: <span class="font-bold text-pl-neon">#${teamStanding ? teamStanding.pos : '-'}</span> (${teamStanding ? teamStanding.pts : 0} pont)</p>
+                                </div>
+                            </div>
+
+                            <div class="flex space-x-2 text-xs">
+                                <div class="bg-purple-950 px-3 py-1.5 rounded-lg border border-purple-900/40 text-center">
+                                    <div class="text-slate-400 text-[10px]">Gólkülönbség</div>
+                                    <div class="font-bold text-white">${teamStanding ? (teamStanding.gf - teamStanding.ga > 0 ? '+' : '') + (teamStanding.gf - teamStanding.ga) : 0}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Matches for this favorite team -->
+                        <div>
+                            <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider mb-3">Mérkőzések</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                ${teamMatches.map(m => {
+                                    const isHome = m.home === teamCode;
+                                    const opponent = isHome ? teamsData[m.away] : teamsData[m.home];
+                                    return `
+                                        <div onclick="openMatchModal(${m.id})" class="bg-purple-950/40 hover:bg-purple-900/40 p-3 rounded-lg border border-purple-900/30 cursor-pointer flex justify-between items-center text-xs">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-slate-400 font-bold">${isHome ? 'HAZAI' : 'VENDÉG'} vs</span>
+                                                <img src="${opponent.logo}" class="w-5 h-5 object-contain" alt="">
+                                                <span class="font-semibold text-white">${opponent.name}</span>
+                                            </div>
+                                            <div class="font-bold text-pl-neon">
+                                                ${m.status === 'UPCOMING' ? 'Közelgő' : `${m.homeGoals} - ${m.awayGoals}`}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += teamSection;
+            });
+        }
+
+        /* ================= MATCHES RENDERER ================= */
+        function renderMatches() {
+            const container = document.getElementById('matches-container');
+            container.innerHTML = '';
+
+            const filtered = matches.filter(m => {
+                if (currentFilter === 'all') return true;
+                return m.status === currentFilter;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-8 text-slate-400 text-sm">Nincs megjeleníthető mérkőzés ebben a kategóriában.</div>`;
+                return;
+            }
+
+            filtered.forEach(m => {
+                const home = teamsData[m.home];
+                const away = teamsData[m.away];
+
+                let statusBadge = '';
+                if (m.status === 'LIVE') {
+                    statusBadge = `<span class="bg-pl-pink/20 text-pl-pink text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-pl-pink/40">
+                        <span class="w-1.5 h-1.5 bg-pl-pink rounded-full pulse-live"></span> ${m.minute}' PERC
+                    </span>`;
+                } else if (m.status === 'FINISHED') {
+                    statusBadge = `<span class="bg-purple-900/60 text-purple-300 text-[10px] font-medium px-2 py-0.5 rounded">VEGE</span>`;
+                } else {
+                    statusBadge = `<span class="bg-purple-950 text-slate-400 text-[10px] font-medium px-2 py-0.5 rounded">MA 21:00</span>`;
+                }
+
+                const cardHtml = `
+                    <div onclick="openMatchModal(${m.id})" class="bg-pl-card hover:bg-pl-cardHover transition border border-purple-900/40 hover:border-pl-neon/40 rounded-xl p-4 cursor-pointer shadow-md flex flex-col justify-between space-y-4">
+                        <div class="flex items-center justify-between text-xs text-slate-400 border-b border-purple-900/30 pb-2">
+                            <span class="truncate max-w-[180px]"><i class="fa-solid fa-location-dot text-purple-400 mr-1"></i>${m.stadium}</span>
+                            ${statusBadge}
+                        </div>
+
+                        <div class="flex items-center justify-between my-2">
+                            <!-- Home Team -->
+                            <div class="flex items-center space-x-2 flex-1">
+                                <button onclick="toggleFavorite('${m.home}', event)" class="${isFavorite(m.home) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-400'} text-xs">
+                                    <i class="fa-solid fa-star"></i>
+                                </button>
+                                <img src="${home.logo}" alt="${home.name}" class="w-7 h-7 object-contain" onerror="this.src='https://placehold.co/32x32/38003c/ffffff?text=${m.home}'">
+                                <span class="font-bold text-sm text-slate-100">${home.name}</span>
+                            </div>
+
+                            <!-- Score -->
+                            <div class="px-4 text-center font-black text-xl text-pl-neon tracking-wider">
+                                ${m.status === 'UPCOMING' ? 'v' : `${m.homeGoals} - ${m.awayGoals}`}
+                            </div>
+
+                            <!-- Away Team -->
+                            <div class="flex items-center space-x-2 flex-1 justify-end">
+                                <span class="font-bold text-sm text-slate-100 text-right">${away.name}</span>
+                                <img src="${away.logo}" alt="${away.name}" class="w-7 h-7 object-contain" onerror="this.src='https://placehold.co/32x32/38003c/ffffff?text=${m.away}'">
+                                <button onclick="toggleFavorite('${m.away}', event)" class="${isFavorite(m.away) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-400'} text-xs">
+                                    <i class="fa-solid fa-star"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-[11px] text-purple-300 bg-purple-950/40 px-3 py-1.5 rounded-lg">
+                            <span>xG: ${m.stats.homeXg} - ${m.stats.awayXg}</span>
+                            <span>Birtoklás: ${m.stats.homePos}% - ${m.stats.awayPos}%</span>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+        }
+
+        /* ================= STANDINGS RENDERER ================= */
+        function renderStandings() {
+            const body = document.getElementById('standings-body');
+            body.innerHTML = '';
+
+            standings.forEach(row => {
+                const team = teamsData[row.team];
+                
+                let posColor = 'text-slate-400';
+                if (row.pos <= 4) posColor = 'text-blue-400 font-bold';
+                else if (row.pos === 5) posColor = 'text-amber-400 font-bold';
+                else if (row.pos >= 18) posColor = 'text-red-400 font-bold';
+
+                const formBadges = row.form.map(res => {
+                    if (res === 'W') return `<span class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-bold flex items-center justify-center border border-emerald-500/40">GY</span>`;
+                    if (res === 'D') return `<span class="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 text-[9px] font-bold flex items-center justify-center border border-amber-500/40">D</span>`;
+                    return `<span class="w-4 h-4 rounded-full bg-red-500/20 text-red-400 text-[9px] font-bold flex items-center justify-center border border-red-500/40">V</span>`;
+                }).join(' ');
+
+                const tr = `
+                    <tr class="hover:bg-purple-900/20 transition">
+                        <td class="py-3 px-3 text-center font-bold ${posColor}">${row.pos}</td>
+                        <td class="py-3 px-4 flex items-center space-x-3">
+                            <button onclick="toggleFavorite('${row.team}', event)" class="${isFavorite(row.team) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-400'} text-xs">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                            <img src="${team.logo}" class="w-5 h-5 object-contain" alt="" onerror="this.src='https://placehold.co/20x20/38003c/ffffff?text=${row.team}'">
+                            <span class="font-semibold text-slate-100">${team.name}</span>
+                        </td>
+                        <td class="py-3 px-2 text-center text-slate-300">${row.played}</td>
+                        <td class="py-3 px-2 text-center text-slate-300">${row.w}</td>
+                        <td class="py-3 px-2 text-center text-slate-300">${row.d}</td>
+                        <td class="py-3 px-2 text-center text-slate-300">${row.l}</td>
+                        <td class="py-3 px-2 text-center text-slate-400 hidden sm:table-cell">${row.gf}</td>
+                        <td class="py-3 px-2 text-center text-slate-400 hidden sm:table-cell">${row.ga}</td>
+                        <td class="py-3 px-2 text-center font-medium ${row.gf - row.ga >= 0 ? 'text-emerald-400' : 'text-red-400'}">${row.gf - row.ga > 0 ? '+' : ''}${row.gf - row.ga}</td>
+                        <td class="py-3 px-3 text-center font-black text-pl-neon text-base">${row.pts}</td>
+                        <td class="py-3 px-3 text-center hidden md:table-cell">
+                            <div class="flex items-center justify-center space-x-1">${formBadges}</div>
+                        </td>
+                    </tr>
+                `;
+                body.innerHTML += tr;
+            });
+        }
+
+        /* ================= MODAL TABS & PLAYER STATS ================= */
+        function switchModalTab(tabId) {
+            document.getElementById('modal-sec-overview').classList.add('hidden');
+            document.getElementById('modal-sec-player-stats').classList.add('hidden');
+            
+            document.getElementById('modal-tab-btn-overview').classList.replace('text-pl-neon', 'text-slate-400');
+            document.getElementById('modal-tab-btn-overview').classList.replace('border-pl-neon', 'border-transparent');
+            document.getElementById('modal-tab-btn-player-stats').classList.replace('text-pl-neon', 'text-slate-400');
+            document.getElementById('modal-tab-btn-player-stats').classList.replace('border-pl-neon', 'border-transparent');
+
+            document.getElementById(`modal-sec-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`modal-tab-btn-${tabId}`);
+            activeBtn.classList.replace('text-slate-400', 'text-pl-neon');
+            activeBtn.classList.replace('border-transparent', 'border-pl-neon');
+
+            if (tabId === 'player-stats') {
+                renderModalPlayerStats();
+            }
+        }
+
+        function filterModalPlayerStats(teamSide) {
+            currentModalPlayerTeam = teamSide;
+            const homeBtn = document.getElementById('modal-player-toggle-home');
+            const awayBtn = document.getElementById('modal-player-toggle-away');
+
+            if (teamSide === 'home') {
+                homeBtn.className = "px-3 py-1 rounded bg-pl-neon text-pl-purple font-bold";
+                awayBtn.className = "px-3 py-1 rounded text-slate-300 hover:text-white font-medium";
+            } else {
+                awayBtn.className = "px-3 py-1 rounded bg-pl-cyan text-pl-purple font-bold";
+                homeBtn.className = "px-3 py-1 rounded text-slate-300 hover:text-white font-medium";
+            }
+
+            renderModalPlayerStats();
+        }
+
+        function renderModalPlayerStats() {
+            const body = document.getElementById('modal-player-stats-body');
+            body.innerHTML = '';
+
+            const matchStats = playerMatchStatsMock[currentModalMatchId];
+            if (!matchStats || !matchStats[currentModalPlayerTeam]) {
+                body.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-slate-400">Ehhez a mérkőzéshez még nem állnak rendelkezésre részletes játékos adatok.</td></tr>`;
+                return;
+            }
+
+            const players = matchStats[currentModalPlayerTeam];
+            players.forEach(p => {
+                let ratingColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                if (p.rating < 7.0) ratingColor = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+                if (p.rating < 6.5) ratingColor = 'bg-red-500/20 text-red-400 border-red-500/40';
+
+                const tr = `
+                    <tr class="hover:bg-purple-900/20 transition">
+                        <td class="py-2.5 px-3 flex items-center space-x-2">
+                            <span class="font-bold text-white">${p.name}</span>
+                            <span class="text-[10px] bg-purple-950 px-1.5 py-0.5 rounded text-purple-300 font-mono">${p.pos}</span>
+                        </td>
+                        <td class="py-2.5 px-2 text-center">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold border ${ratingColor}">${p.rating}</span>
+                        </td>
+                        <td class="py-2.5 px-2 text-center text-slate-200">${p.goals} / ${p.assists}</td>
+                        <td class="py-2.5 px-2 text-center text-slate-300">${p.shots}</td>
+                        <td class="py-2.5 px-2 text-center text-slate-300">${p.passAcc}%</td>
+                        <td class="py-2.5 px-2 text-center text-slate-300">${p.tackles}</td>
+                        <td class="py-2.5 px-2 text-center">${p.cards}</td>
+                    </tr>
+                `;
+                body.innerHTML += tr;
+            });
+        }
+
+        /* ================= MATCH MODAL OPENER UPDATE ================= */
+        function openMatchModal(matchId) {
+            currentModalMatchId = matchId;
+            currentModalPlayerTeam = 'home';
+            switchModalTab('overview');
+
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+
+            const home = teamsData[match.home];
+            const away = teamsData[match.away];
+
+            document.getElementById('modal-home-flag').src = home.logo;
+            document.getElementById('modal-home-name').innerText = home.name;
+            document.getElementById('modal-away-flag').src = away.logo;
+            document.getElementById('modal-away-name').innerText = away.name;
+            document.getElementById('modal-stadium').innerText = match.stadium;
+            document.getElementById('modal-score').innerText = match.status === 'UPCOMING' ? 'v' : `${match.homeGoals} - ${match.awayGoals}`;
+            document.getElementById('modal-match-status').innerText = match.status === 'LIVE' ? `ÉLŐ (${match.minute}')` : match.status;
+
+            // Events
+            const eventsBox = document.getElementById('modal-events');
+            if (match.events.length === 0) {
+                eventsBox.innerHTML = `<span class="text-slate-400">Nincs rögzített esemény.</span>`;
+            } else {
+                eventsBox.innerHTML = match.events.map(e => `
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-pl-neon w-8">${e.min}'</span>
+                        <i class="fa-solid ${e.type === 'goal' ? 'fa-futbol text-white' : 'fa-square text-yellow-400'}"></i>
+                        <span class="text-slate-200">${e.player} (${e.team === 'home' ? home.name : away.name})</span>
+                    </div>
+                `).join('');
+            }
+
+            // Stats comparison bars
+            const statsBars = document.getElementById('modal-stats-bars');
+            const statsConfig = [
+                { label: "Labdabirtoklás (%)", home: match.stats.homePos, away: match.stats.awayPos },
+                { label: "Lövések", home: match.stats.homeShots, away: match.stats.awayShots },
+                { label: "Várható Gólok (xG)", home: match.stats.homeXg, away: match.stats.awayXg },
+                { label: "Szabálytalanságok", home: match.stats.homeFouls, away: match.stats.awayFouls }
+            ];
+
+            statsBars.innerHTML = statsConfig.map(s => {
+                const total = (parseFloat(s.home) + parseFloat(s.away)) || 1;
+                const homePct = (parseFloat(s.home) / total) * 100;
+                return `
+                    <div>
+                        <div class="flex justify-between font-semibold mb-1">
+                            <span class="text-pl-neon">${s.home}</span>
+                            <span class="text-slate-300 text-[11px]">${s.label}</span>
+                            <span class="text-pl-cyan">${s.away}</span>
+                        </div>
+                        <div class="h-2 w-full bg-purple-950 rounded-full overflow-hidden flex">
+                            <div class="bg-pl-neon h-full transition-all duration-500" style="width: ${homePct}%"></div>
+                            <div class="bg-pl-cyan h-full transition-all duration-500" style="width: ${100 - homePct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Lineups
+            document.getElementById('modal-home-lineup').innerHTML = match.lineups.home.map(p => `<li>• ${p}</li>`).join('');
+            document.getElementById('modal-away-lineup').innerHTML = match.lineups.away.map(p => `<li>• ${p}</li>`).join('');
+
+            document.getElementById('match-modal').classList.remove('hidden');
+        }
+
+        function closeMatchModal() {
+            document.getElementById('match-modal').classList.add('hidden');
+        }
+
+        /* ================= SIMULATION & TICKER LOGIC ================= */
+        function toggleSimulation() {
+            const btnText = document.getElementById('sim-btn-text');
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                btnText.innerText = "Élő Sim: KI";
+                addTickerEvent("Szimuláció szüneteltetve.");
+            } else {
+                simulationInterval = setInterval(runSimulationStep, 4000);
+                btnText.innerText = "Élő Sim: BE";
+                addTickerEvent("Élő adatszimuláció elindítva!");
+            }
+        }
+
+        function runSimulationStep() {
+            const liveMatch = matches.find(m => m.id === 1);
+            if (!liveMatch) return;
+
+            liveMatch.minute += 1;
+            if (liveMatch.minute > 90) liveMatch.minute = 1;
+
+            document.getElementById('sim-minute').innerText = `${liveMatch.minute}' PERC`;
+
+            // Random ticker generator
+            const events = [
+                "Lövési kísérlet mellé!",
+                "Veszélyes szöglet a kapu elé.",
+                "Sárga lapos figyelmeztetés a középpályán.",
+                "Nagy védés a kapustól!",
+                "Kényszerű csere a védősorban."
+            ];
+
+            if (Math.random() > 0.6) {
+                const randomEv = events[Math.floor(Math.random() * events.length)];
+                addTickerEvent(`${liveMatch.minute}' perc: ${randomEv}`);
+            }
+
+            renderMatches();
+        }
+
+        function triggerSimGoal() {
+            const liveMatch = matches.find(m => m.id === 1);
+            if (!liveMatch) return;
+
+            if (Math.random() > 0.5) {
+                liveMatch.homeGoals += 1;
+                addTickerEvent(`GOOOL! ⚽ Arsenal szerzett gólt a(z) ${liveMatch.minute}. percben!`);
+            } else {
+                liveMatch.awayGoals += 1;
+                addTickerEvent(`GOOOL! ⚽ Chelsea egyenlített/szépített a(z) ${liveMatch.minute}. percben!`);
+            }
+
+            document.getElementById('sim-score').innerText = `${liveMatch.homeGoals} - ${liveMatch.awayGoals}`;
+            renderMatches();
+        }
+
+        function addTickerEvent(msg) {
+            const ticker = document.getElementById('sim-ticker');
+            const item = document.createElement('div');
+            item.className = "p-2 rounded bg-purple-950/60 border border-purple-800/40 text-slate-200 animate-fade-in";
+            item.innerHTML = `<span class="text-pl-neon font-bold">●</span> ${msg}`;
+            ticker.prepend(item);
+        }
+
+        /* ================= API MODAL LOGIC ================= */
+        function openApiModal() {
+            document.getElementById('api-modal').classList.remove('hidden');
+        }
+        function closeApiModal() {
+            document.getElementById('api-modal').classList.add('hidden');
+        }
+        function saveApiKey() {
+            const key = document.getElementById('api-key-input').value;
+            if (key) {
+                localStorage.setItem('pl_api_key', key);
+                document.getElementById('api-status-msg').classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById('api-status-msg').classList.add('hidden');
+                    closeApiModal();
+                }, 2000);
+            }
+        }
+
+        /* ================= SEARCH FILTER ================= */
+        function filterContent() {
+            const query = document.getElementById('global-search').value.toLowerCase();
+            const cards = document.querySelectorAll('#matches-container > div');
+            
+            cards.forEach(card => {
+                const text = card.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    card.style.display = "flex";
+                } else {
+                    card.style.display = "none";
+                }
+            });
+        }
+    </script>
+</body>
+</html>
